@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 
 function App() {
-  // 1. Estado para las opciones del JSON
+  // 1. Estado para las opciones del JSON local
   const [opciones, setOpciones] = useState(null);
   
   // 2. Estado para la configuración del maniquí actual (separado por cada parte)
@@ -14,11 +14,12 @@ function App() {
     numeroSerie: ''
   });
 
-  // 3. Arreglo para acumular los maniquíes guardados
+  // 3. Arreglo para acumular los maniquíes guardados (ahora sincronizado con la DB)
   const [listaManiquies, setListaManiquies] = useState([]);
 
-  // Cargar los datos del JSON al montar el componente
+  // Cargar los datos del JSON local y el historial de la DB al montar el componente
   useEffect(() => {
+    // A. Traer opciones estáticas del JSON local
     fetch('/opciones.json')
       .then(res => res.json())
       .then(data => {
@@ -33,7 +34,27 @@ function App() {
           numeroSerie: 'MNQ-' + Math.floor(1000 + Math.random() * 9000)
         });
       })
-      .catch(err => console.error("Error cargando el JSON:", err));
+      .catch(err => console.error("Error cargando el JSON local:", err));
+
+    // B. Traer historial real de maniquíes desde MySQL usando tu Backend
+    fetch('http://localhost:3000/api/maniquies')
+      .then(res => res.json())
+      .then(data => {
+        // Mapeamos las columnas de la DB para que encajen con tu tabla de React
+        const historialMapeado = data.map(m => {
+          const partes = m.modelo_nombre ? m.modelo_nombre.split(' | ') : [];
+          return {
+            numeroSerie: m.numero_serie,
+            torso: partes[0] || m.modelo_nombre || 'Estándar',
+            cabeza: partes[1] || 'Estándar',
+            extremidades: partes[2] || 'Estándar',
+            material: partes[3] || 'Plástico',
+            color: m.estado_venta || 'Sin definir'
+          };
+        });
+        setListaManiquies(historialMapeado);
+      })
+      .catch(err => console.error("Error cargando historial desde la DB:", err));
   }, []);
 
   // Manejar los cambios en cualquiera de los menús desplegables
@@ -45,15 +66,40 @@ function App() {
     }));
   };
 
-  // Guardar el maniquí actual en la lista
+  // Guardar el maniquí actual en la Base de Datos real
   const handleGuardar = () => {
-    setListaManiquies(prevLista => [...prevLista, configuracion]);
+    // Empaquetamos los datos en la estructura exacta que tu backend/MySQL esperan
+    const datosParaBackend = {
+      numero_serie: configuracion.numeroSerie,
+      modelo_nombre: `${configuracion.torso} | ${configuracion.cabeza} | ${configuracion.extremidades} | ${configuracion.material}`,
+      estado_venta: configuracion.color
+    };
 
-    // Generamos un nuevo número de serie para el próximo diseño
-    setConfiguracion(prev => ({
-      ...prev,
-      numeroSerie: 'MNQ-' + Math.floor(1000 + Math.random() * 9000)
-    }));
+    // Hacemos el envío mediante POST a Express
+    fetch('http://localhost:3000/api/maniquies', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(datosParaBackend)
+    })
+    .then(res => {
+      if (!res.ok) throw new Error('Error en el servidor al intentar guardar');
+      return res.json();
+    })
+    .then(data => {
+      console.log(data.mensaje);
+
+      // Si el backend guardó con éxito en MySQL, agregamos el maniquí a la tabla visual
+      setListaManiquies(prevLista => [...prevLista, configuracion]);
+
+      // Generamos un nuevo número de serie para el próximo diseño
+      setConfiguracion(prev => ({
+        ...prev,
+        numeroSerie: 'MNQ-' + Math.floor(1000 + Math.random() * 9000)
+      }));
+    })
+    .catch(err => console.error("Error al guardar el maniquí:", err));
   };
 
   if (!opciones) return <p style={{ padding: '20px' }}>Cargando configurador anatómico...</p>;
@@ -133,7 +179,7 @@ function App() {
           </div>
 
           <div style={{ marginTop: '20px', textAlign: 'center', padding: '15px', background: '#e9ecef', borderRadius: '4px', fontStyle: 'italic', color: '#495057' }}>
-            🤖 Maniquí: {configuracion.torso} ({configuracion.cabeza}) con extremidades de {configuracion.extremidades}.
+            🤖 Maniquí: {configuracion.torso} ({configuracion.cabeza}) conBox extremidades de {configuracion.extremidades}.
           </div>
         </div>
 
@@ -145,7 +191,7 @@ function App() {
       <div>
         <h3>Historial de Maniquíes Creados</h3>
         {listaManiquies.length === 0 ? (
-          <p style={{ color: '#888', fontStyle: 'italic' }}>No hay maniquíes guardados en el arreglo del estado.</p>
+          <p style={{ color: '#888', fontStyle: 'italic' }}>No hay maniquíes guardados en la base de datos.</p>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
             <thead>

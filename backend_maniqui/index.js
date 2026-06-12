@@ -1,71 +1,100 @@
 const express = require('express');
 const app = express();
 const PORT = 3000;
+const db = require('./db');
+const cors = require('cors');
 
+app.use(cors());
 // MIDDLEWARE: Obligatorio para que Express pueda leer los datos que le enviamos en un POST
 app.use(express.json());
 
-// NUESTROS ARREGLOS (Simulación de Base de Datos)
-let maniquies = [
-    { id: 1, numero_serie: 'SERIE-A001', modelo_nombre: 'Masculino Ejecutivo', estado_venta: 'Stock' },
-    { id: 2, numero_serie: 'SERIE-B002', modelo_nombre: 'Vintage Madera', estado_venta: 'Vendido' }
-];
-
-let piezas = [
-    { id: 1, id_tipo_pieza: 1, material: 'Plástico', color: 'Blanco', estado: 'Disponible' },
-    { id: 2, id_tipo_pieza: 4, material: 'Madera', color: 'Natural', estado: 'Disponible' }
-];
+// Nota: Eliminamos los arreglos let maniquies y let piezas porque ahora usaremos las tablas de MySQL
 
 // ============================================================================
 // ENDPOINTS PARA MANIQUÍES
 // ============================================================================
 
-// 1. OBTENER TODOS LOS MANIQUÍES (GET)
+// 1. OBTENER TODOS LOS MANIQUÍES (GET) -> Desde la Base de Datos
 app.get('/api/maniquies', (req, res) => {
-    res.json(maniquies);
+    const query = 'SELECT * FROM maniquies';
+    
+    db.query(query, (err, results) => {
+        if (err) {
+            console.error("Error al obtener maniquíes:", err);
+            return res.status(500).json({ error: "Error interno del servidor al consultar la DB" });
+        }
+        res.json(results); // Le enviamos al Front lo que devolvió MySQL
+    });
 });
 
-// 2. CREAR UN NUEVO MANIQUÍ (POST)
+// 2. CREAR UN NUEVO MANIQUÍ (POST) -> Insertar en la Base de Datos
 app.post('/api/maniquies', (req, res) => {
-    const nuevoManiqui = {
-        id: maniquies.length + 1, // Autoincremental simple
-        numero_serie: req.body.numero_serie,
-        modelo_nombre: req.body.modelo_nombre,
-        estado_venta: req.body.estado_venta
-    };
+    const { numero_serie, modelo_nombre, estado_venta } = req.body;
 
-    // Validar que no vengan campos vacíos
-    if (!nuevoManiqui.numero_serie || !nuevoManiqui.modelo_nombre) {
+    // Validar que no vengan campos vacíos (mantenemos tu lógica)
+    if (!numero_serie || !modelo_nombre) {
         return res.status(400).json({ error: "Faltan campos obligatorios (numero_serie o modelo_nombre)" });
     }
 
-    maniquies.push(nuevoManiqui);
-    res.status(201).json({ mensaje: "Maniquí creado con éxito", maniqui: nuevoManiqui });
+    // Consulta SQL con placeholders (?) por seguridad
+    const query = 'INSERT INTO maniquies (numero_serie, modelo_nombre, estado_venta) VALUES (?, ?, ?)';
+    
+    db.query(query, [numero_serie, modelo_nombre, estado_venta || 'Stock'], (err, result) => {
+        if (err) {
+            console.error("Error al insertar maniquí:", err);
+            return res.status(500).json({ error: "Error al guardar en la base de datos" });
+        }
+        
+        // Devolvemos el éxito junto con el ID autoincremental que generó MySQL
+        res.status(201).json({ 
+            mensaje: "Maniquí creado con éxito", 
+            maniqui: {
+                id: result.insertId,
+                numero_serie,
+                modelo_nombre,
+                estado_venta: estado_venta || 'Stock'
+            }
+        });
+    });
 });
 
-// 3. BORRAR UN MANIQUÍ POR ID (DELETE)
+// 3. BORRAR UN MANIQUÍ POR ID (DELETE) -> Eliminar de la Base de Datos
 app.delete('/api/maniquies/:id', (req, res) => {
     const idBuscar = parseInt(req.params.id);
-    const index = maniquies.findIndex(m => m.id === idBuscar);
 
-    if (index === -1) {
-        return res.status(404).json({ error: "Maniquí no encontrado" });
-    }
+    const query = 'DELETE FROM maniquies WHERE id = ?';
 
-    // Lo sacamos del arreglo
-    const eliminado = maniquies.splice(index, 1);
-    res.json({ mensaje: "Maniquí eliminado con éxito", eliminado: eliminado[0] });
+    db.query(query, [idBuscar], (err, result) => {
+        if (err) {
+            console.error("Error al eliminar maniquí:", err);
+            return res.status(500).json({ error: "Error al eliminar en la base de datos" });
+        }
+
+        // result.affectedRows te dice cuántas filas se borraron. Si es 0, no existía ese ID.
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: "Maniquí no encontrado" });
+        }
+
+        res.json({ mensaje: "Maniquí eliminado con éxito", id_eliminado: idBuscar });
+    });
 });
 
 // ============================================================================
 // ENDPOINTS PARA PIEZAS
 // ============================================================================
 
-// 4. OBTENER TODAS LAS PIEZAS (GET)
+// 4. OBTENER TODAS LAS PIEZAS (GET) -> Desde la Base de Datos
 app.get('/api/piezas', (req, res) => {
-    res.json(piezas);
-});
+    const query = 'SELECT * FROM piezas';
 
+    db.query(query, (err, results) => {
+        if (err) {
+            console.error("Error al obtener piezas:", err);
+            return res.status(500).json({ error: "Error al consultar las piezas" });
+        }
+        res.json(results);
+    });
+});
 
 // INICIAR SERVIDOR
 app.listen(PORT, () => {
