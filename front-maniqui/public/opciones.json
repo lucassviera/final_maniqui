@@ -1,0 +1,26 @@
+{
+  "cabezas": [
+    { "id": "cb1", "nombre": "Sin pelo" },
+    { "id": "cb2", "nombre": "Pelo Corto" },
+    { "id": "cb3", "nombre": "Pelo Largo" }
+  ],
+  "torsos": [
+    { "id": "t1", "nombre": "Hombre" },
+    { "id": "t2", "nombre": "Mujer" },
+    { "id": "t3", "nombre": "Niño" }
+  ],
+  "extremidades": [
+    { "id": "e1", "nombre": "Adulto" },
+    { "id": "e2", "nombre": "Niño" }
+  ],
+  "materiales": [
+    { "id": "m1", "nombre": "Madera" },
+    { "id": "m2", "nombre": "Plástico" },
+    { "id": "m3", "nombre": "Fibra de Vidrio" }
+  ],
+  "colores": [
+    { "id": "c1", "nombre": "Madera Natural" },
+    { "id": "c2", "nombre": "Blanco Mate" },
+    { "id": "c3", "nombre": "Negro Brillante" }
+  ]
+}
